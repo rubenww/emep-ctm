@@ -10,17 +10,20 @@ include Makefile.SRCS
 # prefered netCDF 4.2.1.1 or later
 LIBS = -lnetcdf -lnetcdff
 #explicit pathes needed only if nc-config does not work
-INCL = -I/global/hds/software/cpu/eb3/netCDF-Fortran/4.4.4-foss-2017a-HDF5-1.8.18/include
-LLIB = -L/global/hds/software/cpu/eb3/netCDF-Fortran/4.4.4-foss-2017a-HDF5-1.8.18/lib
+#_org INCL = -I/global/hds/software/cpu/eb3/netCDF-Fortran/4.4.4-foss-2017a-HDF5-1.8.18/include
+#_org LLIB = -L/global/hds/software/cpu/eb3/netCDF-Fortran/4.4.4-foss-2017a-HDF5-1.8.18/lib
+#explicit paths RIVM
+INCL = -I/data/netcdf/include -I/data/mvapich/include -I/opt/intel/include
+LLIB = -L/data/netcdf/lib  -L/data/mvapich/lib -L/opt/intel/lib
 
 # options by nc-config/nf-config utility
-INCL = $(shell nc-config --fflags)
-LLIB = $(shell nc-config --flibs)
+#INCL = $(shell nc-config --fflags)
+#LLIB = $(shell nc-config --flibs)
 
-F90 = mpif90
+F90 = mpiifort
 
 # GNU gfortran compiler (version 4.4.3 or later)
-F90FLAGS = -ffree-line-length-none -fdefault-real-8 -fdefault-double-8 -O2
+#F90FLAGS = -ffree-line-length-none -fdefault-real-8 -fdefault-double-8 -O2
 
 # Intel ifort compiler (comment out if gfortran used)
 F90FLAGS = -shared-intel -r8 -recursive -O2
