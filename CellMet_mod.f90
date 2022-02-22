@@ -60,7 +60,7 @@ private
 public :: Get_CellMet   ! sets Grid-average (e.g. NWP) near-surface met, and
                         ! calls Get_Submet routines
 
-integer, save, public :: z0_out_ix = -1, invL_out_ix = -1
+integer, save, public :: z0_out_ix = -1, invL_out_ix = -1, ustar_out_ix = -1, d_out_ix = -1, z_refd_out_ix = -1, Ra_ref_out_ix = -1, Ra_3m_out_ix = -1
 
 contains
 !=======================================================================
@@ -212,12 +212,24 @@ if( debug_flag ) write(*,"(a,3es12.3,f8.2)") 'CellHd', Grid%Hd, &
        if(Grid%is_allsea)then
            if(z0_out_ix>0) d_2d(z0_out_ix,i,j,IOU_INST) = log(Sub(lu)%z0)
            if(invL_out_ix>0) d_2d(invL_out_ix,i,j,IOU_INST) = Sub(lu)%invL 
+           ! ustar_out_ix d_out_ix z_refd_out_ix Ra_ref_out_ix Ra_3m_out_ix
+           if(ustar_out_ix>0) d_2d(ustar_out_ix,i,j,IOU_INST) = Sub(lu)%ustar 
+           if(d_out_ix>0) d_2d(d_out_ix,i,j,IOU_INST) = Sub(lu)%d 
+           if(z_refd_out_ix>0) d_2d(z_refd_out_ix,i,j,IOU_INST) = Sub(lu)%z_refd 
+           if(Ra_ref_out_ix>0) d_2d(Ra_ref_out_ix,i,j,IOU_INST) = Sub(lu)%Ra_ref 
+           if(Ra_3m_out_ix>0) d_2d(Ra_3m_out_ix,i,j,IOU_INST) = Sub(lu)%Ra_3m 
         else if(.not.LandType(lu)%is_water) then
            land_frac = land_frac+LandCover(i,j)%fraction(ilu)
            if(z0_out_ix>0) d_2d(z0_out_ix,i,j,IOU_INST) = &
                 d_2d(z0_out_ix,i,j,IOU_INST) + log(Sub(lu)%z0)*LandCover(i,j)%fraction(ilu)
            if(invL_out_ix>0)  d_2d(invL_out_ix,i,j,IOU_INST) = &
                 d_2d(invL_out_ix,i,j,IOU_INST) + Sub(lu)%invL*LandCover(i,j)%fraction(ilu)
+           ! ustar_out_ix d_out_ix z_refd_out_ix Ra_ref_out_ix Ra_3m_out_ix
+           if(ustar_out_ix>0) d_2d(ustar_out_ix,i,j,IOU_INST) = d_2d(ustar_out_ix,i,j,IOU_INST) + Sub(lu)%ustar*LandCover(i,j)%fraction(ilu) 
+           if(d_out_ix>0) d_2d(d_out_ix,i,j,IOU_INST) = d_2d(d_out_ix,i,j,IOU_INST) + Sub(lu)%d*LandCover(i,j)%fraction(ilu) 
+           if(z_refd_out_ix>0) d_2d(z_refd_out_ix,i,j,IOU_INST) = d_2d(z_refd_out_ix,i,j,IOU_INST) + Sub(lu)%z_refd*LandCover(i,j)%fraction(ilu) 
+           if(Ra_ref_out_ix>0) d_2d(Ra_ref_out_ix,i,j,IOU_INST) = d_2d(Ra_ref_out_ix,i,j,IOU_INST) + Sub(lu)%Ra_ref*LandCover(i,j)%fraction(ilu) 
+           if(Ra_3m_out_ix>0) d_2d(Ra_3m_out_ix,i,j,IOU_INST) = d_2d(Ra_3m_out_ix,i,j,IOU_INST) + Sub(lu)%Ra_3m*LandCover(i,j)%fraction(ilu) 
         endif
      enddo
      if(.not.Grid%is_allsea)then
@@ -227,6 +239,12 @@ if( debug_flag ) write(*,"(a,3es12.3,f8.2)") 'CellHd', Grid%Hd, &
                 d_2d(z0_out_ix,i,j,IOU_INST)/land_frac
            if(invL_out_ix>0)  d_2d(invL_out_ix,i,j,IOU_INST) = &
                 d_2d(invL_out_ix,i,j,IOU_INST)/land_frac
+           ! ustar_out_ix d_out_ix z_refd_out_ix Ra_ref_out_ix Ra_3m_out_ix
+           if(ustar_out_ix>0) d_2d(ustar_out_ix,i,j,IOU_INST) = d_2d(ustar_out_ix,i,j,IOU_INST)/land_frac
+           if(d_out_ix>0) d_2d(d_out_ix,i,j,IOU_INST) = d_2d(d_out_ix,i,j,IOU_INST)/land_frac
+           if(z_refd_out_ix>0) d_2d(z_refd_out_ix,i,j,IOU_INST) = d_2d(z_refd_out_ix,i,j,IOU_INST)/land_frac
+           if(Ra_ref_out_ix>0) d_2d(Ra_ref_out_ix,i,j,IOU_INST) = d_2d(Ra_ref_out_ix,i,j,IOU_INST)/land_frac
+           if(Ra_3m_out_ix>0) d_2d(Ra_3m_out_ix,i,j,IOU_INST) = d_2d(Ra_3m_out_ix,i,j,IOU_INST)/land_frac
         else
            write(*,*) dtxt//'WARNING: found grid with no sea and no land',&
                      i,j,nlu,land_frac

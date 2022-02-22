@@ -41,7 +41,7 @@ module RunChem_mod
   use AOD_PM_mod,        only: AOD_Ext
   use Aqueous_mod,       only: Setup_Clouds, prclouds_present, WetDeposition
   use Biogenics_mod,     only: setup_bio
-  use CellMet_mod,       only: Get_CellMet, z0_out_ix, invL_out_ix
+  use CellMet_mod,       only: Get_CellMet, z0_out_ix, invL_out_ix, ustar_out_ix, d_out_ix, z_refd_out_ix, Ra_ref_out_ix, Ra_3m_out_ix
   use CheckStop_mod,     only: CheckStop, StopAll
   use Chemfields_mod,    only: xn_adv    ! For DEBUG 
   use Chemsolver_mod,    only: chemistry
@@ -116,6 +116,11 @@ subroutine runchem()
   if(first_call)then
      z0_out_ix = find_index("logz0", f_2d(:)%subclass)
      invL_out_ix = find_index("invL", f_2d(:)%subclass)
+     ustar_out_ix = find_index("ustar", f_2d(:)%subclass)
+     d_out_ix = find_index("d", f_2d(:)%subclass)
+     z_refd_out_ix = find_index("z_refd", f_2d(:)%subclass)
+     Ra_ref_out_ix = find_index("Ra_ref", f_2d(:)%subclass)
+     Ra_3m_out_ix = find_index("Ra_3m", f_2d(:)%subclass)
   endif
 
 ! Processes calls 
