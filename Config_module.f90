@@ -893,7 +893,7 @@ subroutine Config_Constants(iolog)
  
   USES%LocalFractions = USES%LocalFractions .or. USES%uEMEP !for backward compatibility
 
-  ! Convert DEBUG%SPEC to index
+  ! Convert DEBUG%SPEC, DEBUG%NO_DRYDEP to index
   if(first_call)then
     if(MasterProc)&
          write(iolog,*) 'CHEM SCHEMES: ',trim(CM_schemes_ChemSpecs)
@@ -902,6 +902,20 @@ subroutine Config_Constants(iolog)
   ! print *, "debug%spec testing", ispec, trim(DEBUG%SPEC)
     call CheckStop(ispec<1,"debug%spec not found"//trim(DEBUG%SPEC))
     DEBUG%ISPEC = ispec
+
+    if(DEBUG%NO_DRYDEP=="all") then
+        ! Disable dry deposition for all species
+        if(MasterProc)&
+             write(iolog,*) 'WARNING: disabling dry deposition for all species! (DEBUG%NO_DRYDEP == "all")'
+    else
+        ! Disable dry deposition for a specific species
+        ispec = find_index( DEBUG%NO_DRYDEP, species(:)%name )
+        call CheckStop(ispec<1,"DEBUG%NO_DRYDEP not found"//trim(DEBUG%NO_DRYDEP))
+        DEBUG%NO_DRYDEP_ISPEC = ispec
+        if(MasterProc)&
+             write(iolog,*) 'WARNING: disabling dry deposition for DEBUG%NO_DRYDEP = ', trim(DEBUG%NO_DRYDEP)
+    end if
+
     first_call = .false.
   end if
 

@@ -83,11 +83,17 @@ module Debug_module
      ,SUBMET    = 2         & ! Use 999 for all land-cover, otherwise LC index
      ,STOP_HH   = -1          ! If positive, code will quite when hh==STOP_HH
   !----------------------------------------------------------
-   integer, dimension(2) :: IJ = [-999,-999]  ! index for debugging print out
-   character(len=20)     :: SPEC = 'O3'       ! default.
-   character(len=20)     :: datetxt = '-'     ! default.
-   character(len=20)     :: SITE = 'NOT_SET'  !  e.g. Birkenes. (Full name not essential)
-   integer               :: ISPEC = -999      ! Will be set after NML
+   integer, dimension(2) :: IJ = [-999,-999]       ! index for debugging print out
+   character(len=20)     :: SPEC = 'O3'            ! default.
+   character(len=20)     :: NO_DRYDEP = '-'        ! disable dry deposition for this species
+                                                   ! Options:
+                                                   !  '-' = enable dry deposition (default)
+                                                   !  'all' = disable dry deposition for all species
+                                                   !  'NH3'/'NO3'/... = disable dry deposition for a specific species
+   character(len=20)     :: datetxt = '-'          ! default.
+   character(len=20)     :: SITE = 'NOT_SET'       !  e.g. Birkenes. (Full name not essential)
+   integer               :: ISPEC = -999           ! Will be set after NML
+   integer               :: NO_DRYDEP_ISPEC = -999 ! Will be set after NML
 end type emep_debug
 type(emep_debug), public, save :: DEBUG
 

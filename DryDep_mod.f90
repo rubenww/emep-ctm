@@ -813,6 +813,19 @@ contains
             DepLoss(nadv) =   vg_fac( icmp )  * xn_2d( ntot,K2)
             cfac(nadv, i,j) = gradient_fac( icmp )
         end if !SEMIVOL
+
+        if(DEBUG%NO_DRYDEP=="all") then
+            ! disabling dry deposition for all species
+            cfac(nadv,i,j) = 1.0
+            DepLoss(nadv) = 0.0
+        else if(DEBUG%NO_DRYDEP_ISPEC>0) then
+            if(ntot == DEBUG%NO_DRYDEP_ISPEC) then
+                ! disabling dry deposition for this specific component
+                cfac(nadv,i,j) = 1.0
+                DepLoss(nadv) = 0.0
+            end if
+        end if
+
         if( dbg .and. first_ddep ) then
            lossfrac = ( 1 - DepLoss(nadv)/(1+xn_2d( ntot,K2))) ! 1 avoids NaN
            write(*,'(a20,i4,4es10.3)') "DBGX "//trim(species(ntot)%name)&
