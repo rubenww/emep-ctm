@@ -907,10 +907,10 @@ subroutine Config_Constants(iolog)
         ! Disable dry deposition for all species
         if(MasterProc)&
              write(iolog,*) 'WARNING: disabling dry deposition for all species! (DEBUG%NO_DRYDEP == "all")'
-    else
+    else if(DEBUG%NO_DRYDEP/="-") then
         ! Disable dry deposition for a specific species
         ispec = find_index( DEBUG%NO_DRYDEP, species(:)%name )
-        call CheckStop(ispec<1,"DEBUG%NO_DRYDEP not found"//trim(DEBUG%NO_DRYDEP))
+        call CheckStop(ispec<1,"DEBUG%NO_DRYDEP ('-', 'all', 'SPECIES'); SPECIES not found: "//trim(DEBUG%NO_DRYDEP))
         DEBUG%NO_DRYDEP_ISPEC = ispec
         if(MasterProc)&
              write(iolog,*) 'WARNING: disabling dry deposition for DEBUG%NO_DRYDEP = ', trim(DEBUG%NO_DRYDEP)
