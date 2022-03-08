@@ -10,7 +10,7 @@ AllocInit.o : AllocInit.f90 CheckStop_mod.o
 AOTnPOD_mod.o : AOTnPOD_mod.f90 TimeDate_mod.o Par_mod.o OwnDataTypes_mod.o NumberConstants.o MetFields_mod.o LocalVariables_mod.o LandDefs_mod.o Io_Progs_mod.o GridValues_mod.o DO3SE_mod.o Debug_module.o Config_module.o CM_ChemSpecs_mod.o ChemFields_mod.o CheckStop_mod.o 
 Aqueous_n_WetDep_mod.o : Aqueous_n_WetDep_mod.f90 Units_mod.o SmallUtils_mod.o ZchemData_mod.o PhysicalConstants_mod.o Par_mod.o SOA_mod.o MetFields_mod.o MassBudget_mod.o LocalFractions_mod.o Io_mod.o GridValues_mod.o GasParticleCoeffs_mod.o DerivedFields_mod.o Debug_module.o Config_module.o CM_ChemGroups_mod.o CM_ChemSpecs_mod.o CM_ChemDims_mod.o CheckStop_mod.o My_Derived_mod.o 
 BiDir_emep.o : BiDir_emep.f90 Config_module.o 
-BiDir_module.o : BiDir_module.f90 
+BiDir_module.o : BiDir_module.f90 Resistances_module.o
 BLPhysics_mod.o : BLPhysics_mod.f90 PhysicalConstants_mod.o Landuse_mod.o Config_module.o 
 Biogenics_mod.o : Biogenics_mod.f90 ZchemData_mod.o TimeDate_mod.o SmallUtils_mod.o Radiation_mod.o PhysicalConstants_mod.o Par_mod.o OwnDataTypes_mod.o NetCDF_mod.o MetFields_mod.o LocalVariables_mod.o Landuse_mod.o LandPFT_mod.o LandDefs_mod.o KeyValueTypes.o Io_mod.o GridValues_mod.o Debug_module.o Config_module.o CM_ChemSpecs_mod.o CheckStop_mod.o 
 BoundaryConditions_mod.o : BoundaryConditions_mod.f90 TimeDate_ExtraUtil_mod.o TimeDate_mod.o SmallUtils_mod.o PhysicalConstants_mod.o Par_mod.o NumberConstants.o NetCDF_mod.o MPI_Groups_mod.o MetFields_mod.o LocalVariables_mod.o Landuse_mod.o Io_Progs_mod.o Io_mod.o GridValues_mod.o Functions_mod.o Debug_module.o Config_module.o CM_ChemSpecs_mod.o CM_ChemDims_mod.o ChemFields_mod.o CheckStop_mod.o 

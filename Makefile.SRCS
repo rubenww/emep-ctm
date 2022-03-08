@@ -30,7 +30,7 @@ FOBJ ?=	\
         OutputChem_mod.o OwnDataTypes_mod.o Par_mod.o \
 	PhysicalConstants_mod.o PlumeRise_mod.o PointSource_mod.o \
 	Precision_mod.o Radiation_mod.o Rb_mod.o \
-	ReadField_mod.o Rsurface_mod.o Runchem_mod.o Setup_1d_mod.o \
+	ReadField_mod.o Resistances_module.o Rsurface_mod.o Runchem_mod.o Setup_1d_mod.o \
 	Sites_mod.o SmallUtils_mod.o SOA_mod.o \
 	SoilWater_mod.o Solver.o SeaSalt_mod.o StoFlux_mod.o \
 	SubMet_mod.o Tabulations_mod.o TimeDate_mod.o TimeDate_ExtraUtil_mod.o \

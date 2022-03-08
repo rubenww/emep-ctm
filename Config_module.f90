@@ -104,7 +104,8 @@ CHARACTER(LEN=TXTLEN_NAME), private, save :: LAST_CONFIG_LINE_DEFAULT
   type, private :: natbio_t
     integer :: C5H8 = 1
     integer :: TERP = 2
-    integer :: Nrcbio = 2  ! No. of rcbio defined in ChemFields/Biogenics_mod
+    !BIDIR integer :: Nrcbio = 2  ! No. of rcbio defined in ChemFields/Biogenics_mod
+    integer :: Nrcbio = 4  ! No. of rcbio defined in ChemFields/Biogenics_mod
     integer :: NO   = 3    ! used for EmisNat etc
     integer :: NH3  = 4
   end type natbio_t
@@ -191,6 +192,7 @@ type, public :: emep_useconfig
   character(len=15) :: WHITECAPS  = 'Callaghan'
 ! In development
    logical :: BIDIR       = .false.  !< FUTURE Bi-directional exchange
+   logical :: BiDirEuroXwater = .false. 
    character(len=20)      :: BiDirMethod = 'NOTSET'  ! FUTURE
    character(len=20)      :: MonthlyNH3  = 'NOTSET'  ! can be 'LOTOS'
 end type emep_useconfig
@@ -376,7 +378,7 @@ integer, public, parameter :: &
   ,FREQ_SITE  =         1     & ! Interval (hrs) between outputs
   ,NSHL_SITE_MAX  =    10     & ! No. short-lived species
   ,NXTRA_SITE_MISC =    2     & ! No. Misc. met. params  ( e.g. T2, d_2d)
-  ,NXTRA_SITE_D2D  =   18       ! No.  params from d_2d fields 
+  ,NXTRA_SITE_D2D  =   19       ! No.  params from d_2d fields 
 integer, public, parameter :: NSONDES_MAX = 99 ! Max. no sondes allowed
 
 integer, private :: isite              ! To assign arrays, if needed
@@ -413,7 +415,7 @@ character(len=TXTLEN_SHORT), public :: SONDE_ADV_names(NSPEC_ADV) = 'NOTSET'
 !These variables must have been set in My_Derived for them to be used.
 character(len=24), public, parameter, dimension(NXTRA_SITE_D2D) :: &
   SITE_XTRA_D2D=[character(len=24):: &
-    "HMIX", & !Hmix is interpolated in time, unlike NWP version 
+    "HMIX","PSURF", & ! Bosco skip: "ws_10m","rh2m",&
     "Emis_mgm2_BioNatC5H8","Emis_mgm2_BioNatTERP",&
     "Emis_mgm2_BioNatNO","Emis_mgm2_nox",&
     'WDEP_PREC',&!''SNratio',&
@@ -759,7 +761,8 @@ character(len=TXTLEN_FILE), target, save, public :: lightningFile = 'DataDir/lt2
 character(len=TXTLEN_FILE), target, save, public :: LoganO3File = 'DataDir/Logan_P.nc'
 character(len=TXTLEN_FILE), target, save, public :: DustFile = 'DataDir/Dust2014_month.nc'
 character(len=TXTLEN_FILE), target, save, public :: TopoFile = 'DataDir/GRID/topography.nc'
-character(len=TXTLEN_FILE), target, save, public :: BiDirInputFile = 'NOTSET' ! FUTURE
+character(len=TXTLEN_FILE), target, save, public :: BiDirInputFile = 'NOTSET' ! FUTURE 
+character(len=TXTLEN_FILE), target, save, public :: BiDirInputDir = 'NOTSET' ! FUTURE
 character(len=TXTLEN_FILE), target, save, public :: Monthly_patternsFile = 'DataDir/ECLIPSEv5_monthly_patterns.nc'
 
 !----------------------------------------------------------------------------
@@ -848,6 +851,7 @@ subroutine Config_Constants(iolog)
    ,NdepFile&
    ,lightningFile&
    ,BiDirInputFile&
+   ,BiDirInputDir&
    ,LoganO3File&
    ,DustFile&
    ,TopoFile&
