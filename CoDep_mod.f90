@@ -163,7 +163,8 @@ contains
   !/ 3) Rns_NH3   - see emepctm eqn (8.16)
   !     Rns_SO2   - Fagerli et al, in preperation
 
-
+  if(debug_flag) print *, "CODEP rh's (IRH, frh): ", IRH, frh !Hazelhos, added
+  
     if (Ts_C >0 ) then    ! Use "rh" - now in fraction 0..1.0
 
           !F1 = 10.0 * log10(Ts_C+2.0) * exp(100.0*(1.0-frh)/7.0)

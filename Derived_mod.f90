@@ -46,6 +46,7 @@ use AeroConstants_mod, only: AERO
 use AOD_PM_mod,        only: AOD_init,aod_grp,wavelength,& ! group and
                                 wanted_wlen,wanted_ext3d      ! wavelengths
 use AOTx_mod,          only: Calc_GridAOTx
+use BiDir_emep,       only : Bidir_Xtot, BiDir_NH3_3m, BiDir_XH3_3m, BiDir_NHxEmis !Hazelhos, autumn 2019; added BiDir_NHxEmis
 use Biogenics_mod,     only: EmisNat, NEMIS_BioNat, EMIS_BioNat
 use CheckStop_mod,     only: CheckStop, StopAll
 use Chemfields_mod,    only: xn_adv, xn_shl, cfac,xn_bgn, AOD,  &
@@ -352,6 +353,7 @@ subroutine Define_Derived()
   character(len=TXTLEN_IND)  :: outind
 
   integer :: ind, iadv, ishl, idebug, n, igrp, iout, isec_poll
+  logical :: found
 
   if(dbg0) write(6,*) " START DEFINE DERIVED "
   !   same mol.wt assumed for PPM25 and PPMCOARSE
@@ -377,11 +379,30 @@ subroutine Define_Derived()
   !Deriv(name, class,    subc,  txt,           unit
   !Deriv index, f2d, dt_scale, scale, avg? rho Inst Yr Mn Day atw
 
+! NOT YET: Scale pressure by 0.01 to get hPa
+  call AddNewDeriv( "PSURF","PSURF",  "SURF","-",   "hPa", &
+          -99,  -99,  F,  1.0,  T,  'YM' )
+
+!NB: do not remove or change name. PS is part of vertical coordinates definition!!
   call AddNewDeriv( "PS","PSURF",  "SURF","-",   "hPa", &
           -99,  -99,  F,  1.0,  T,  'YMD'//trim(PS_needed) )
 
   call AddNewDeriv( "T2m","T2m",  "-","-",   "deg. C", &
                -99,  -99, F, 1.0,  T,  'YM' )
+
+!BIDIR
+!AddNewDeriv( 		name,	class,	subclass,	txt,	unit,&
+!			ind,	f2d,	dt_scale,	scale, 	avg,	iotype,	Is3D)
+  call AddNewDeriv( "ugXTOT ","ugXTOT",  "-","-",   "ug/m3", &
+               -99,  -99,  F,  1.0,  T,   'YMD' )
+  call AddNewDeriv( "ugNH3_3m ","ugNH3_3m",  "-","-",   "ug/m3", &
+               -99,  -99,  F,  1.0,  T,   'YMD' )
+  call AddNewDeriv( "ugXH3_3m ","ugXH3_3m",  "-","-",   "ug/m3", &
+               -99,  -99,  F,  1.0,  T,   'YMD' )
+!Hazelhos, autumn 2019: Added BiDir_NHx_Emissions
+  call AddNewDeriv( "BiDir_NHx_Emissions ", "USET", "-", "NH3 emissions BiDir", "ugN/m2/h", &
+			   -99,  -99,  F,   1.0, T, 'YMDI' )
+!END BIDIR
 
 ! OutputFields can contain both 2d and 3d specs.
 ! Settings for 2D and 3D are independant.
@@ -1173,6 +1194,30 @@ subroutine Derived(dt,End_of_Day,ONLY_IOU)
       forall ( i=1:limax, j=1:ljmax )
         d_2d( n, i,j,IOU_INST) = t2_nwp(i,j,1) - 273.15
     end forall
+!BIDIR
+    case ( "ugXTOT" )
+      forall ( i=1:limax, j=1:ljmax )
+        d_2d( n, i,j,IOU_INST) = BiDir_Xtot(i,j)
+    end forall
+    if (debug_proc) call write_debug(n,ind, "ugXTOT")
+    case ( "ugNH3_3m" )
+      forall ( i=1:limax, j=1:ljmax )
+        d_2d( n, i,j,IOU_INST) = BiDir_NH3_3m(i,j)
+    end forall
+    if ( dbgP ) call write_debug(n,ind, "ugNH3_3m")
+    case ( "ugXH3_3m" )
+      forall ( i=1:limax, j=1:ljmax )
+        d_2d( n, i,j,IOU_INST) = BiDir_XH3_3m(i,j)
+    end forall
+    if ( dbgP ) call write_debug(n,ind, "ugXH3_3m")
+	!Hazelhos, autumn 2019
+	case ( "BiDir_NHx_Emissions" )
+      forall ( i=1:limax, j=1:ljmax )
+        d_2d( n, i,j,IOU_INST) = BiDir_NHxEmis(i,j)
+    end forall
+    if ( dbgP ) call write_debug(n,ind, "BiDir_NHx_Emissions")
+
+!END BIDIR
     case ( "Idirect" )
       forall ( i=1:limax, j=1:ljmax )
         d_2d( n, i,j,IOU_INST) = Idirect(i,j)

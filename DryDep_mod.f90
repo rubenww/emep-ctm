@@ -57,7 +57,8 @@ module DryDep_mod
 ! Also, handling of dry/wet and co-dep procedure changed following discussions
 ! with CEH.
 
-! FUTURE: BiDir functionality (Dave/Roy Wichink Kruit) using Roy's methods
+! Autumn/Winter 2017-2018 + summer 2019
+! in-progress: BiDir functionality (Dave/Roy Wichink Kruit) using Roy's methods
   
 use AeroConstants_mod,    only: AERO
 use Aero_Vds_mod,         only: SettlingVelocity, GPF_Vds300, Wesely300
@@ -185,10 +186,13 @@ contains
 
      allocate(BL(nddep))
      allocate(gradient_fac(nddep), vg_fac(nddep), Vg_ref(nddep), &
-         Vg_eff(nddep), Vg_3m(nddep), Vg_ratio(nddep), sea_ratio(nddep), Gsto(nddep) ,eff_fac(nddep))
+         Vg_eff(nddep), Vg_3m(nddep), Vg_ratio(nddep), sea_ratio(nddep), &
+         Gsto(nddep) ,eff_fac(nddep))
 
      call CheckStop( NLOCDRYDEP_MAX < nddep, &
         "Need to increase size of NLOCDRYDEP_MAX" )
+
+     if ( USES%BIDIR ) call Init_BiDir()   ! Allocations, read 2-D fields, 
 
      !Need to re-implement one day
      !A2018 nadv = 0
@@ -267,7 +271,14 @@ contains
 
     real, dimension(NSPEC_ADV ,NLANDUSEMAX):: fluxfrac_adv
     integer, dimension(NLUMAX)  :: iL_used, iL_fluxes
-     !BIDIR SKIP    real :: wet, dry         ! Fractions
+  !BIDIR
+    real :: wet, dry         ! Fractions
+    real :: Xtot, Xemis, GextBD, GigsBD, oldRsur, ug_old
+    real :: ugNH3_zmid, ugNH3_3m_LC, ugXH3_3m_LC, ugNH3_3m_grid, ugXH3_3m_grid
+    real, parameter ::  xn2ugNH3 =  17/AVOG*1.0e6*1.0e6  ! molec/cm3  -> ug/m3
+    real :: sstK, ssNH4, sspH, ssS
+    real :: Xwater !for BiDir
+  !END BIDIR
     real :: fsnow            ! snow fraction for one landuse
     real :: Vds              ! Aerosol near-surface deposition rate (m/s)
     real :: no3nh4ratio      ! Crude NH4/NO3 for Vds ammonium 
@@ -313,8 +324,7 @@ contains
     dbg       =  DEBUG%DRYDEP .and. debug_flag 
     dbghh     =  dbg .and. iss == 0 
     dbgBD     =  DEBUG%BIDIR .and. debug_flag .and. iss == 0
-    if (dbgBD) print *, "BIDIR TEST ", me, debug_flag
-
+    if (dbgBD) write(*,*) dtxt//"BIDIR START ", me, debug_flag
 
 
      inv_gridarea = 1.0/(GRIDWIDTH_M*GRIDWIDTH_M) 
@@ -421,7 +431,53 @@ contains
            [ DDspec(icmp)%DpgV, DDspec(icmp)%sigma,  DDspec(icmp)%rho_p, &
               BL(icmp)%Vs ] )
       end if
-    end do
+    end do ! icmp
+
+!BIDIR:
+     if ( USES%BIDIR ) then !  Sets Gammas and X values for land/water
+
+ 	   ugNH3_zmid = xn_2d(NH3,K2) * xn2ugNH3  ! conc. at grid centre, ug/m3
+
+       if( BiDir_NH3inst(i,j) < 0 ) BiDir_NH3inst(i,j) = ugNH3_zmid ! Initial
+
+       ! Get Xwater, Xgs, Xext:
+       Xwater = -999.0
+       !if( USES%BiDirEuroXwater .and. L%is_water ) then
+!FIXME
+       if( USES%BiDirEuroXwater ) then
+	      !Hazelhos 20191114 inserted load_input_data_BiDir to check if current month has changed and Sea data needs to be updated (load sea data)
+		  call load_input_data_BiDir()
+          call set_BiDirSea(i,j,ssNH4,sspH,sstK,ssS) 									
+		  if ( dbgBD ) print '(a, 2es12.3, 2L2)', "sstK ", sstK, Xwater, dbgBD, debug_flag  					!Hazelhos: added print statement
+		  
+          !if( sstK < 500.0  ) & 	!Hazelhos 20-03-2020: removed this if-statement. We want Xwaters to be calculated also for non-CMEM cells
+		  !												  Now, Xwater is calculated for every cell, including non-water cells. It doesn't have 
+		  !												  an effect on non-water cells, since it is overwritten in BiDirXconcs.
+          Xwater=BiDirXwater(i,j,Grid%sst,ssNH4,sspH,sstK,ssS,Sub(14)%is_water,debug_flag,'nwpSST') ! or monthlySST, Hazelhos 21-02-2020: added Sub(14)%is_water boolean and dbgBD. 14 = water LU. Should make this more general?
+		  if ( dbgBD ) print '(a,9es12.3)', "BDXwater ", ssNH4,sspH,sstK,ssS, Grid%sst, Xwater
+       end if
+
+	   if ( dbgBD ) print '(a, 1es12.3, 3L2)', "Xwater, L%is_water, Grid%is_mainlysea, Sub(14)%is_water Before Xconcs: ",  Xwater, L%is_water, Grid%is_mainlysea, Sub(14)%is_water  	!Hazelhos: added print statement
+       call BiDirXconcs(Grid%t2C, Grid%sst, Xwater, BiDir_aSN(i,j),  &
+           BiDir_NH3inst(i,j), &  ! 3m conc (ug/m3) from last time-step
+           BiDir_NH3aLT(i,j), dbg=debug_flag)						!Hazelhos 15-11-2019: removed BiDir_NHxDep(i,j), 
+																	!Hazelhos 07-02-2020: added water boolean Grid%is_mainlysea (is valid when fraction water > 0.5). May not be a sustainable solution, 
+																						! since we want to introduce river emissions and IJsselmeer as well. Not sure if IJsselmeer qualifies as Grid%is_mainlysea
+																						! consider moving this function call for BiDirXconcs to below for a better solution, when we have a value for L%is_water.
+																	!Hazelhos 21-02-2020: changed Grid%is_mainlysea with Sub(14)%is_water. 14 is the land use category for water.
+																	!Hazelhos 20-03-2020: Removed Sub(14)%is_water as it is no longer necessary.
+	   if ( dbgBD ) print '(a, 1es12.3)', "Xwater After Xconcs: ",  Xwater  			!Hazelhos: added print statement
+
+      ! Initialise before LC loop:
+       BiDir_NHxEmis(i,j) = 0.0
+       BiDir_Xtot(i,j)    = 0.0
+       BiDir_NH3_3m(i,j)    = 0.0
+       BiDir_XH3_3m(i,j)    = 0.0
+       ugNH3_3m_grid = 0.0 ! from zmid down
+       ugXH3_3m_grid = 0.0 ! from Xtot upwards
+    end if
+!END BIDIR:
+
 
 
 !PW_____________________________________________________________________
@@ -458,6 +514,21 @@ contains
       call Rb_gas(L%is_water, L%ustar, L%z0, BL(:)%Rb)
 
       call Rsurface(i,j,BL(:)%Gsto,BL(:)%Rsur,errmsg,debug_flag,fsnow)
+
+
+!BDIR calculate Rsur here and below
+      if ( USES%BIDIR ) then ! overwrites Rsur
+		
+        oldRsur=BL(idcmpNH3)%Rsur
+		if ( dbgBD ) print '(a, 2es9.2)', 'Bidir res. inputs 1 RHs (L%rh, Grid%rh2m) : ', L%rh, Grid%rh2m 				!Hazelhos added print statement
+		if ( dbgBD ) print '(a, 3es9.2)', 'Bidir res. inputs 1 Rinc, Gsto, oldRsur: ', Rinc, BL(idcmpNH3)%Gsto, oldRsur !Hazelhos added print statement
+		if ( dbgBD ) print '(a, 2L2)', 'Bidir res. inputs 1 Water, frozen: ',  Grid%is_frozen,L%is_water				!Hazelhos added print statement
+        call BiDirResistances(L%SAI,L%rh,Grid%is_frozen,L%is_water,&													!Hazelhos, autumn 2019: changed Grid%rh2m to L%rh, because Grid%rh2m gives fractions of order E-5 whereas L%rh gives more realistic fractions ~0.7
+          Rinc,BL(idcmpNH3)%Gsto, &                      !:inputs
+            GextBD,GigsBD,BL(idcmpNH3)%Rsur,debug_flag)  !:outputs
+		if ( dbgBD ) print '(a, 3es9.2)', 'Bidir res. outputs 1 GextBD, GigsBD, Rsur', GextBD, GigsBD, BL(idcmpNH3)%Rsur !Hazelhos added print statement
+      end if
+!END BDIR
 
       do icmp = 1, nddep    !DSQUERY - Check aerosol usage!
 
@@ -518,6 +589,21 @@ contains
       call Rb_gas(L%is_water, L%ustar, L%z0, BL(:)%Rb)
 
       call Rsurface(i,j,BL(:)%Gsto,BL(:)%Rsur,errmsg,debug_flag,fsnow)
+	  if ( dbgBD ) print '(a, 2es9.2)', 'EMEP Rsurface. output Gsto,  Rsur: ', BL(idcmpNH3)%Gsto,BL(idcmpNH3)%Rsur 			!Hazelhos added print statement
+
+!BDIR calculate Rsur here and above
+      if ( USES%BIDIR ) then ! overwrites Rsur
+        oldRsur=BL(idcmpNH3)%Rsur
+		if ( dbgBD ) print '(a, 3es9.2)', 'Bidir res. inputs 2 Rinc, Gsto, oldRsur: ', Rinc, BL(idcmpNH3)%Gsto, oldRsur 	!Hazelhos added print statement
+        call BiDirResistances(L%SAI,L%rh,Grid%is_frozen,L%is_water,& 														!Hazelhos, autumn 2019: changed Grid%rh2m to L%rh, because Grid%rh2m gives fractions of order E-5 whereas L%rh gives more realistic fractions ~0.7
+          Rinc,BL(idcmpNH3)%Gsto, &                      !:inputs
+            GextBD,GigsBD,BL(idcmpNH3)%Rsur,debug_flag)  !:outputs
+		if ( dbgBD ) print '(a, 4es9.2)', 'Bidir res. outputs 2 GextBD, GigsBD, Rsur, L%coverage', GextBD, GigsBD, &
+							BL(idcmpNH3)%Rsur, L%coverage 	!Hazelhos added print statement
+      end if
+      wet =   Grid%wetarea  ! QUERY Now used for BIDIR
+      dry =   1.0 - wet     !  "  "
+!END BDIR
 
       if(dbghh) call datewrite(dtxt//"STOFRAC "//LandDefs(iL)%name, &
               iL, [  BL(idcmpO3)%Gsto, BL(idcmpO3)%Rsur, &
@@ -532,16 +618,15 @@ contains
 
        !/... add to grid-average Vg:
 
-!BIDIR SKIP         wet =   Grid%wetarea  ! QUERY Now used for BIDIR
-!BIDIR SKIP         dry =   1.0 - wet     !  "  "
 
       CMPLOOP: do icmp = 1, nddep
 
         ! ================================================
         if ( DDspec(icmp)%is_gas  ) then
 
-           Vg_ref(icmp) = 1. / ( L%Ra_ref + BL(icmp)%Rb + BL(icmp)%Rsur ) 
-           Vg_eff(icmp) = 1. / ( (L%Ra_X + BL(icmp)%Rb + BL(icmp)%Rsur) * eff_fac(icmp)) 
+           Vg_ref(icmp) = 1. / ( L%Ra_ref + BL(icmp)%Rb + BL(icmp)%Rsur )
+           Vg_eff(icmp) = 1. / &
+             ( (L%Ra_X + BL(icmp)%Rb + BL(icmp)%Rsur) * eff_fac(icmp) ) !eff_fac is approximately 1. Vg_ref ~ Vg_eff.  
            Vg_3m(icmp)  = 1. / ( L%Ra_3m  + BL(icmp)%Rb + BL(icmp)%Rsur ) 
 
            if( dbg .and. first_ddep .and. icmp==idcmpNO2 ) then
@@ -553,15 +638,85 @@ contains
 
           ! specials, NH3 and NO2:
 
+!BIDIR
            if ( USES%BIDIR .and. icmp == idcmpNH3 ) then
 
-              call StopAll(dtxt//'NOT IMPLEMENTED YET')
-           
-           ! Surrogate for NO2 compensation point approach, 
-           ! assuming c.p.=4 ppb (ca. 1.0e11 #/cm3):        
-           ! Note, xn_2d has no2 in #/cm-3
+              !call StopAll(dtxt//'NOT IMPLEMENTED YET')cd -
+			  
+              ! QUERY -why BL%Gsto and Gsto?
+			  
+			     if ( dbgBD ) print '(a, 3i4)', 'bidirb4flux LU loop iL, nlu, iiL: ', iL, nlu, iiL														!Hazelhos: added print statement
+				 if ( dbgBD ) print '(a, 2i4)', 'bidirb4flux LU loop i, j: ', i, j																		!Hazelhos: added print statement
+				 !if ( dbgBD ) print '(a, 1es12.3)', "Xwater before BiDirFluxes: ",  Xwater  															!Hazelhos: added print statement
+				 if ( dbgBD ) print '(a, 5es9.2)', 'bidirb4flux Ra_ref, Rb, rsur, Ra_X, Ra_3m: ', L%Ra_ref, BL(icmp)%Rb, BL(icmp)%Rsur, L%Ra_X, L%Ra_3m !Hazelhos: added print statement
+				 if ( dbgBD ) print '(a, 6es9.2)', 'bidirb4flux Vg_ref, Vg_eff, eff_fac, Gsto, Gigs, Gext:', Vg_ref(icmp),Vg_eff(icmp), eff_fac(icmp), BL(icmp)%Gsto, GigsBD, GextBD 	!Hazelhos added print statement
+                 call BiDirFluxes(L%is_water,L%SAI,Vg_ref(icmp),BL(icmp)%Gsto,&																!Hazelhos, autumn 2019: Xwater is added as input argument
+                      GextBD,GigsBD,Xwater, &             !:inputs											
+                      Xtot,Xemis,debug=debug_flag) 		  !:outputs																			!Xemis does nothing! Why calculate it?
+					  
+				 call CheckStop ( Xtot < 0.0, dtxt//'NEG XTOT'//LandDefs(iL)%name)
+				 
 
-            else if ( .not. USES%SOILNOX .and.  icmp == idcmpNO2 ) then
+                 ! Xtot is in ug(NH3)/m3.   V.X is in m/s * ug/m3 = ug/m2/s 
+                 ! *14/17*3600 gives ugN/m2/h as wanted in Biogenics_mod
+                 ! QUERY - multiply by delta t?
+				 if ( dbgBD ) print '(a, 4es12.3)', "BiDir_NHxemis 1",  BiDir_NHxEmis(i,j), Vg_ref(icmp), L%coverage, Xtot  	!Hazelhos: added print statement
+
+                 BiDir_NHxEmis(i,j) = BiDir_NHxEmis(i,j) + &									
+                   Vg_ref(icmp) * Xtot * L%coverage * (14./17*3600)
+                   !BUG? Vg_ref(icmp) * Xtot * L%coverage/360 * (14./17*3600)
+				 if ( dbgBD ) print '(a, 4es12.3)', "BiDir_NHxemis 2",  BiDir_NHxEmis(i,j), Vg_ref(icmp), L%coverage, Xtot  	!Hazelhos: added print statement
+				   
+                 BiDir_Xtot(i,j) = BiDir_Xtot(i,j) + Xtot * L%coverage							
+
+				 ! Conc NH3 at 3-4m is needed:
+				 ! F = Vg(z)*C(z) = C(zmid)/(Ra+Rb+Rc) =  [C(zmid)-C(3m)]/Ra(zmid,3m)
+				 ! ie C(3m) = C(zmid) - F.Ra(zmid,3m)
+				 !BiDir
+				 ! F = Vg(z)*[C(zmid)-Cc] = [C(zmid)-C(3m)]/Ra(zmid,3m)
+				 ! ie C(3m) = C(zmid)-Vg.dRa*[C(zmid)-Cc] = C(zmid)[1-Vg.dRa] + Cc.Vg.dRa
+                 
+				 
+                 Ra_diff = L%Ra_ref - L%Ra_3m
+                 !Ra_diff = L%Ra_X - L%Ra_3m !TMP FIX QUERY!!!
+                 
+				 Ra_diff = max(Ra_diff, L%Ra_3m)
+				 if ( dbgBD ) print '(a, 3es12.3)', "BiDir Ra_diff ",  L%Ra_ref, L%Ra_3m, Ra_Diff  							!Hazelhos: added print statement
+				 !FIXME if( Ra_diff < 0.0 ) Ra_diff = 0.0
+				 !FIXME  print '(a,9es10.3)', dtxt//'RADIFF', L%Ra_X, L%Ra_ref, L%Ra_3m, L%hveg, L%z0,Grid%z_ref,L%z_refd
+				 !call CheckStop(  Ra_diff < 0.0, dtxt// "BIDIRRa_diff")
+
+				 !JUL10 ugNH3_3m_LC   = ugNH3_zmid* (1- Ra_diff * Vg_ref(icmp) )
+				 !JUL10 ugXH3_3m_LC   = Xtot *  Ra_diff * Vg_ref(icmp)
+                 ugNH3_3m_LC   = ugNH3_zmid* (1- Ra_diff * Vg_eff(icmp) ) ! Jul10 eff, 										 Hazelhos 04-12-19: Why do we use Vg_eff here and not Vg_ref? at other places, which one we use depends on USES%EFFECTIVE_RESISTANCE (e.g. line 826)
+																		  !													 in Line 668, we use Ra_ref in stead of Ra_X. Ra_ref should be linked to Vg_ref?
+				 ugXH3_3m_LC   = Xtot *  Ra_diff * Vg_eff(icmp) ! Jul10 eff
+				 if ( dbgBD ) print '(a, 5es12.3)', "BiDir ug_NH3_grid 1 ",  ugNH3_3m_grid, ugXH3_3m_grid, &
+					ugNH3_3m_LC, ugXH3_3m_LC, L%coverage   																	!Hazelhos: added print statement
+                 ugNH3_3m_grid = ugNH3_3m_grid + ugNH3_3m_LC * L%coverage													!Hazelhos: For every land use, the concentrations are added depending on the coverage
+                 ugXH3_3m_grid = ugXH3_3m_grid + ugXH3_3m_LC * L%coverage
+				 if ( dbgBD ) print '(a, 3es12.3)', "BiDir ug_NH3_grid 2 ",  ugNH3_3m_grid, ugXH3_3m_grid, L%coverage   	!Hazelhos: added print statement
+
+                 if ( iL == 9 .and. Xtot > 10.0 ) then ! QUERY too high?
+                  write(*,'(a,2i3,2i4,es10.2,9f8.3)') dtxt//"XXBID "//&
+                    trim(LandDefs(iL)%name), iL, ihh, i_fdom(i), j_fdom(j), &
+                    GextBD, Xtot, ugNH3_zmid, ugNH3_3m_LC, Xtot, ugXH3_3m_LC
+                 end if
+                 if( dbgBD .and. Xtot>10 ) then !  iL==1)  then
+                     write(*,'(a,2i3,es10.2,9f8.3)') dtxt//"BIDIRxx "//LandDefs(iL)%name, &
+                        iL, ihh, GextBD, Xtot, ugNH3_zmid, ugNH3_3m_LC, Xtot, ugXH3_3m_LC
+                     call datewrite(dtxt//"BIDIRnh3 "//LandDefs(iL)%name, &
+                        iL, (/ L%SAI, 100*BL(icmp)%Gsto, oldRsur, BL(icmp)%Rsur, Xtot, &
+                        BiDir_NHxEmis(i,j)  /) )
+                 end if
+!END BIDIR
+
+           else if ( .not. USES%SOILNOX .and.  icmp == idcmpNO2 ) then
+
+          ! Surrogate for NO2 compensation point approach, 
+          ! assuming c.p.=4 ppb (ca. 1.0e11 #/cm3):        
+          ! Note, xn_2d has no2 in #/cm-3
+
 
               if( dbg .and. first_ddep .and. icmp==idcmpNO2 ) &
                   write(*,*) 'DBGXNO2 no2fac TRIGGERED', no2fac, 4.0e-11*xn_2d(NO2,K2)
@@ -659,9 +814,9 @@ contains
       if ( L%is_water ) then
          do icmp = 1, nddep
             if(USES%EFFECTIVE_RESISTANCE)then
-               sea_ratio(icmp) =  Vg_ref(icmp)/Vg_3m(icmp)
-            else
                sea_ratio(icmp) =  Vg_eff(icmp)/Vg_3m(icmp)
+            else
+               sea_ratio(icmp) =  Vg_ref(icmp)/Vg_3m(icmp)
             endif
          end do
       else
@@ -669,10 +824,10 @@ contains
          do icmp = 1, nddep
             if(USES%EFFECTIVE_RESISTANCE)then
                Vg_ratio(icmp) =  Vg_ratio(icmp) &
-                                 + L%coverage * Vg_ref(icmp)/Vg_3m(icmp)
+                                + L%coverage * Vg_eff(icmp)/Vg_3m(icmp)
             else
                Vg_ratio(icmp) =  Vg_ratio(icmp)&
-                                + L%coverage * Vg_eff(icmp)/Vg_3m(icmp)
+                                 + L%coverage * Vg_ref(icmp)/Vg_3m(icmp)
             endif
          end do
       end if
@@ -744,6 +899,18 @@ contains
    !=======================
 
 
+!BIDIR
+    if ( USES%BIDIR ) then ! Set new 3m NH3 for next cycle
+      ug_old = BiDir_NH3inst(i,j)
+      BiDir_NH3inst(i,j) = ugNH3_3m_grid + ugXH3_3m_grid
+      BiDir_NH3_3m(i,j) = BiDir_NH3_3m(i,j) + ugNH3_3m_grid
+      BiDir_XH3_3m(i,j) = BiDir_XH3_3m(i,j) + ugXH3_3m_grid	
+      if(dbgBD) call datewrite(dtxt//"BIDIRzz ", &
+             -1, (/ ugNH3_zmid, ug_old, BiDir_NH3inst(i,j) /) )
+    end if
+!END BIDIR
+
+
     ! Convert from Vg*f to f for grid-average:
     !where ( Vg_ref > 1.0e-6 )
     where ( Sub(0)%Vg_ref > 1.0e-6 )
@@ -754,10 +921,51 @@ contains
 
 
     if ( Sumland > 0.01 ) then
-        gradient_fac(:) = Vg_ratio(:) / Sumland
+       gradient_fac(:) = Vg_ratio(:) / Sumland 														!Hazelhos, autumn 2019: moved this statement up, so that it doesn't overwrite the gradient_fac for NH3 when Bidir is called
+	   if ( dbgBD ) print '(a, 1es12.3)', "BiDir Gradient_fac nh3: ",  gradient_fac(idcmpNH3)  		!Hazelhos: added print statement
+!BIDIR
+	   if ( USES%BIDIR .and. ugNH3_zmid > 1.0e-2 ) then !Don't bother with tiny concs
+         gradient_fac(idcmpNH3) = (ugNH3_3m_grid+ugXH3_3m_grid)/ugNH3_zmid							!Hazelhos: gradient_fac = ratio conc. at 3/50m. Should there not also be something with Sumland here?
+		 if ( dbgBD ) print '(a, 1es12.3)', "BiDir Gradient_fac nh3 2: ",  gradient_fac(idcmpNH3)  	!Hazelhos: added print statement
+		 
+         if( dbgBD .and. iL==1) write(*,'(a,4f12.4)') 'BIDIRyy', &
+           ugNH3_3m_grid, ugXH3_3m_grid,ugNH3_zmid,gradient_fac(idcmpNH3)
+         if ( gradient_fac(idcmpNH3) > 1.0 ) then
+            !write(*,'(a,3i4,9f10.3)') 'XBIG ', me,i,j,ugNH3_zmid,&
+             ! ugNH3_3m_grid, ugXH3_3m_grid, BiDir_Xtot(i,j),&
+             ! gradient_fac(CDDEP_NH3)
+
+			  if ( gradient_fac(idcmpNH3) > 10.0 ) then
+				write(*,'(a,3i4,5f10.3,es12.2)') 'XXBIG ', me,i,j,&
+				  ugNH3_zmid, ugNH3_3m_grid, ugXH3_3m_grid, BiDir_Xtot(i,j),&
+				  gradient_fac(idcmpNH3), BiDir_NHxEmis(i,j)
+			  end if
+         end if
+       end if
+!END BIDIR
     else
-        gradient_fac(:) = sea_ratio(:)
-    end if
+        gradient_fac(:) = sea_ratio(:)																!Hazelhos 04-12-2019: What if Sumland = 0.02? The gridcell would be 98% sea but has no representation of it.
+!BIDIR																								!Hazelhos autumn, 2019: added similar approach for sea tiles as is implemented for land
+	   if ( USES%BIDIR .and. ugNH3_zmid > 1.0e-2 ) then !Don't bother with tiny concs
+         gradient_fac(idcmpNH3) = (ugNH3_3m_grid+ugXH3_3m_grid)/ugNH3_zmid
+		 if ( dbgBD ) print '(a, 1es12.3)', "BiDir Gradient_fac sea nh3 3: ",  gradient_fac(idcmpNH3)!Hazelhos: added print statement
+		 
+         if( dbgBD .and. iL==1) write(*,'(a,4f12.4)') 'BIDIRyy sea ', &
+           ugNH3_3m_grid, ugXH3_3m_grid,ugNH3_zmid,gradient_fac(idcmpNH3)
+         if ( gradient_fac(idcmpNH3) > 1.0 ) then
+            !write(*,'(a,3i4,9f10.3)') 'XBIG sea ', me,i,j,ugNH3_zmid,&
+            !  ugNH3_3m_grid, ugXH3_3m_grid, BiDir_Xtot(i,j),&
+            !  gradient_fac(CDDEP_NH3)
+
+			  if ( gradient_fac(idcmpNH3) > 10.0 ) then
+				write(*,'(a,3i4,5f10.3,es12.2)') 'XXBIG sea ', me,i,j,&
+				  ugNH3_zmid, ugNH3_3m_grid, ugXH3_3m_grid, BiDir_Xtot(i,j),&
+				  gradient_fac(idcmpNH3), BiDir_NHxEmis(i,j)
+			  end if
+         end if
+       end if
+!END BIDIR
+	end if
 
     if ( dbghh ) then
         call datewrite(dtxt//" VGR fsnow Vg", (/ Grid%sdepth, & 
@@ -772,9 +980,9 @@ contains
     do icmp = 1, nddep ! NDRYDEP_CALC
 
        if(USES%EFFECTIVE_RESISTANCE)then
-          vg_fac (icmp) = 1.0 - exp ( -Sub(0)%Vg_eff(icmp) * dtz ) 
-       else
           vg_fac (icmp) = 1.0 - exp ( -Sub(0)%Vg_Ref(icmp) * dtz ) 
+       else
+          vg_fac (icmp) = 1.0 - exp ( -Sub(0)%Vg_eff(icmp) * dtz ) 
        endif
 
     end do ! icmp
@@ -810,8 +1018,9 @@ contains
            cfac(nadv, i,j) = Fgas(ntot,K2)*gradient_fac(icmp) + &
                 Fpart(ntot,K2)*gradient_fac( idcmpPMf )
         else
-            DepLoss(nadv) =   vg_fac( icmp )  * xn_2d( ntot,K2)
-            cfac(nadv, i,j) = gradient_fac( icmp )
+            DepLoss(nadv) =   vg_fac( icmp )  * xn_2d( ntot,K2) 	!Hazelhos: This is the deposition (per grid cell! Outside the LU loop)
+			if ( dbgBD .and. icmp == idcmpNH3 ) print '(a, 4i4,2es12.3)', "BiDir NH3 Deposition Balance: ",  i, j, nadv, icmp, BiDir_NHxEmis(i,j), DepLoss(nadv) !Hazelhos: Added print statement
+            cfac(nadv, i,j) = gradient_fac( icmp )					!Hazelhos: Concentration ratio
         end if !SEMIVOL
         if( dbg .and. first_ddep ) then
            lossfrac = ( 1 - DepLoss(nadv)/(1+xn_2d( ntot,K2))) ! 1 avoids NaN
@@ -842,7 +1051,7 @@ contains
           end if
         end if ! ntot==O3
 
-        xn_2d( ntot,K2) = xn_2d( ntot,K2) - DepLoss(nadv)
+        xn_2d( ntot,K2) = xn_2d( ntot,K2) - DepLoss(nadv) !Hazelhos: Here, the new concentrations are calculated
 
 
         if ( ntot == FLUX_TOT ) then
@@ -958,6 +1167,13 @@ contains
 
    call Add_MosaicOutput(debug_flag,i,j,convfac2,&
             itot2DDspec, fluxfrac_adv, Deploss ) 
+
+!BIDIR QUERY - what is duplicated/deprecated?
+     ! SoilNH3 emissions are used to ser rcemis 
+       if ( USES%BIDIR )  SoilNH3(i,j) = BiDir_NHxEmis(i,j) ! Duplicated, 		Hazelhos 06-12-2019: Not sure how this works, but the emissions are put in the system, and they affect SURF_ug_NH3
+        
+                                                    ! deprecated...
+!END BIDIR
 
    ! SPOD outputs were put here
 

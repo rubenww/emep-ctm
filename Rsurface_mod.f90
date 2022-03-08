@@ -34,6 +34,7 @@ use GasParticleCoeffs_mod, only: nddep, DDspec,  &
                               idcmpO3, idcmpHNO3,idcmpNH3,idcmpSO2
 use Io_Progs_mod,       only: datewrite
 use LandDefs_mod,       only: LandDefs, LandType
+
 ! L (local) provides  t2C, rh, LAI, SAI, hveg, ustar, 
 !      PARsun,PARshade,  (in W/m2)
 !      LAIsunfrac, RgsO, RgsS, is_water, is_forest
@@ -265,7 +266,7 @@ contains
    else
       Rinc = 0.0
    end if
-
+   if ( dbg ) print '(a, 2es10.3)', 'EMEP Rsurface. Rinc, L%gsto: ', Rinc, L%g_sto !Hazelhos added print statement
 
   ! Sulphur, non-stomatal terms , ACP 59
   ! (fsnow already accounts for factor 2 from ACP 59)
@@ -362,6 +363,7 @@ contains
                Rsur(icmp) =  1.0e10  ! BIG number
              end if ! is_crop
           end if
+		  if ( dbg ) print '(a, 4es9.2)', 'EMEP Rsurface NH3. Gns, Gsto, Rsur, Rns_NH3: ', Gns(icmp), Gsto(icmp), Rsur(icmp), Rns_NH3 !Hazelhos added print statement
 
           cycle GASLOOP
         end if  ! NH3

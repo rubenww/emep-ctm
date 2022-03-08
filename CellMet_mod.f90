@@ -102,8 +102,14 @@ subroutine Get_CellMet(i,j,debug_flag)
   Grid%z_mid    = z_mid(i,j,KMAX_MID)   ! NB: Approx, updated every 3h
   Grid%rh2m = rh2m(i,j,1) !NWP value !now used in BiDir
   Grid%sst  = sst(i,j,1)  !NWP value !to be used in BiDir
-  Grid%is_frozen = Grid%t2 < 271.15 ! BiDir extra
-
+  !Hazelhos 2020-04-10+: moved this line below, after Grid%t2 is specified. This caused the issue of 'vertical lines'.
+  !						 In short, Grid%T2 for some cells was very different than the surrounding cells, resulting in
+  !						 cells in the middle of the sea that have 2m-temperatures of 270K, compared to surrounding 275K
+  !						 cells. This in turn resulted in random cells for which is_frozen = True, subsequently affecting 
+  !						 (Bidir)-deposition.
+  !Grid%is_frozen = Grid%t2 < 271.15 ! BiDir extra						
+  !if ( debug_flag ) print '(a, 1L2, 3es9.2)', 'Bidir CellMet_mod is_frozen, rh2m, sst, t2m: ',  Grid%is_frozen,Grid%rh2m,Grid%sst, Grid%t2				!Hazelhos added print statement
+  !Hazelhos 2020-04-10-
 
   ! Have option to use a different reference ht:
   if ( USES%ZREF ) then
@@ -137,14 +143,21 @@ if( debug_flag ) write(*,"(a,3es12.3,f8.2)") 'CellHd', Grid%Hd, &
    maxval(fh(:,:,1)), minval(fh(:,:,1)), Grid%z_mid
   Grid%LE    = -fl(i,j,1)       ! Heat flux, *away from* surface
   Grid%ustar = ustar_nwp(i,j)   !  u*
-  Grid%t2    = t2_nwp(i,j,1)    ! t2 , K
+  Grid%t2    = t2_nwp(i,j,1)    ! t2 , K			!Hazelhos 2020-04-10: here Grid%t2 is set.. after we use it for determining is_frozen in BiDir?
   Grid%t2C   = Grid%t2 - 273.15 ! deg C
+
+  !Hazelhos 2020-04-10+ Added is_frozen parameterization here in stead of above
+  Grid%is_frozen = Grid%t2 < 271.15 ! BiDir extra	
+  if ( debug_flag ) print '(a, 1L2,3es9.2)', 'Bidir CellMet_mod 2 is_frozen rh2m, sst, t2m: ',  Grid%is_frozen,Grid%rh2m,Grid%sst, Grid%t2				!Hazelhos added print statement
+  !Hazelhos 2020-04-10-
+  
   Grid%theta_ref = th(i,j,KMAX_MID,1)
   Grid%rh2m  = rh2m(i,j,1)      !
   Grid%rho_s = rho_surf(i,j)    ! Should replace Met_mod calc. in future
 
   Grid%is_mainlysea = mainly_sea(i,j)
   Grid%is_allsea = .true. !set to false below if land found
+ 
   
   Grid%sdepth    = sdepth(i,j,1)
   Grid%ice_nwp   = max( ice_nwp(i,j,1), ice_landcover(i,j) )
