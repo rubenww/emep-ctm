@@ -19,6 +19,7 @@ F90 = mpiifort
 
 # Intel ifort compiler (comment out if gfortran used)
 F90FLAGS = -shared-intel -r8 -recursive -O2
+#F90FLAGS = -shared-intel -r8 -recursive -check -warn interfaces -debug-parameters all -traceback -O0 -g -extend-source -heap-arrays
 
 ###################################################
 

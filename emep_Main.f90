@@ -234,8 +234,6 @@ program emep_Main
 
   call Init_BVOC()
 
-  call Init_BiDir()           ! BIDIR FUTURE 
-
   call tabulate()             ! sets up tab_esat, etc.
 
   call Init_WetDep()           ! sets up scavenging ratios
